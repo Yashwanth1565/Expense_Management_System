@@ -1,7 +1,3 @@
-fastapi
-uvicorn
-sqlalchemy
-pydantic
-requests
 streamlit
+sqlalchemy
 pandas
