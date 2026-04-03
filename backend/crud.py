@@ -1,8 +1,6 @@
-from sqlalchemy.orm import Session
 import models
 
-# Create
-def create_expense(db: Session, expense):
+def create_expense(db, expense):
     db_expense = models.Expense(
         employee_name=expense.employee_name,
         amount=expense.amount,
@@ -15,8 +13,7 @@ def create_expense(db: Session, expense):
     return db_expense
 
 
-# Read with filters
-def get_expenses(db: Session, name=None, status=None):
+def get_expenses(db, name=None, status=None):
     query = db.query(models.Expense)
 
     if name:
@@ -28,8 +25,7 @@ def get_expenses(db: Session, name=None, status=None):
     return query.all()
 
 
-# Update
-def update_expense(db: Session, expense_id: int, updated_data):
+def update_expense(db, expense_id, updated_data):
     expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
 
     if not expense:
@@ -48,8 +44,7 @@ def update_expense(db: Session, expense_id: int, updated_data):
     return expense
 
 
-# Delete
-def delete_expense(db: Session, expense_id: int):
+def delete_expense(db, expense_id):
     expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
 
     if not expense:
@@ -63,8 +58,7 @@ def delete_expense(db: Session, expense_id: int):
     return True
 
 
-# Approve / Reject
-def update_status(db: Session, expense_id: int, status: str):
+def update_status(db, expense_id, status):
     expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
 
     if not expense:
@@ -79,8 +73,7 @@ def update_status(db: Session, expense_id: int, status: str):
     return expense
 
 
-# Dashboard
-def get_dashboard(db: Session):
+def get_dashboard(db):
     total = db.query(models.Expense).count()
     approved = db.query(models.Expense).filter(models.Expense.status == "Approved").count()
     rejected = db.query(models.Expense).filter(models.Expense.status == "Rejected").count()
