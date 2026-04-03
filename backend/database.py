@@ -1,10 +1,14 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import Column, Integer, String, Date
+from database import Base
+from datetime import date
 
-DATABASE_URL = "postgresql://postgres:yash1565@localhost:5432/expense_db"
+class Expense(Base):
+    __tablename__ = "expenses"
 
-engine = create_engine(DATABASE_URL)
-
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-
-Base = declarative_base()
+    id = Column(Integer, primary_key=True, index=True)
+    employee_name = Column(String, nullable=False)
+    amount = Column(Integer, nullable=False)
+    category = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+    date = Column(Date, default=date.today)
+    status = Column(String, default="Pending")
