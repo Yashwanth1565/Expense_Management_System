@@ -1,52 +1,45 @@
 import streamlit as st
-import requests
 import pandas as pd
 
-BASE_URL = "http://127.0.0.1:8000"
+from database import SessionLocal, engine
+import models, crud
 
+# Create tables
+models.Base.metadata.create_all(bind=engine)
+
+# ---------------- UI Styling ----------------
 st.set_page_config(page_title="Expense System", layout="wide")
 
-st.title(" Expense Approval System")
 st.markdown("""
-    <style>
-    .stApp {
-        background-image: url("https://images.unsplash.com/photo-1557683316-973673baf926");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-    }
+<style>
+.stApp {
+    background-image: url("https://images.unsplash.com/photo-1519389950473-47ba0277781c");
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}
 
-    /* Make content semi-transparent */
-    .main {
-        background-color: rgba(0, 0, 0, 0.7);
-        padding: 20px;
-        border-radius: 15px;
-    }
+.main {
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 20px;
+    border-radius: 15px;
+}
 
-    /* Sidebar styling */
-    section[data-testid="stSidebar"] {
-        background: rgba(0, 0, 0, 0.9);
-    }
+section[data-testid="stSidebar"] {
+    background: rgba(0, 0, 0, 0.9);
+}
 
-    /* Input fields */
-    input, textarea {
-        background-color: #1e1e1e !important;
-        color: white !important;
-        border-radius: 8px !important;
-    }
-
-    /* Buttons */
-    .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        border-radius: 10px;
-        height: 45px;
-        width: 100%;
-        font-size: 16px;
-    }
-
-    </style>
+.stButton>button {
+    background-color: #4CAF50;
+    color: white;
+    border-radius: 10px;
+    height: 45px;
+    width: 100%;
+}
+</style>
 """, unsafe_allow_html=True)
+
+st.markdown("<h1 style='text-align:center;color:white;'>Expense Approval System</h1>", unsafe_allow_html=True)
 
 menu = st.sidebar.selectbox("Menu", [
     "Dashboard",
@@ -57,13 +50,11 @@ menu = st.sidebar.selectbox("Menu", [
     "Approve/Reject"
 ])
 
+db = SessionLocal()
 
-# Dashboard
+# ---------------- Dashboard ----------------
 if menu == "Dashboard":
-    res = requests.get(f"{BASE_URL}/dashboard/")
-    data = res.json()
-
-    st.subheader("📊 Dashboard")
+    data = crud.get_dashboard(db)
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Total", data["total"])
@@ -71,7 +62,7 @@ if menu == "Dashboard":
     col3.metric("Rejected", data["rejected"])
 
 
-# Submit
+# ---------------- Submit ----------------
 elif menu == "Submit Expense":
     name = st.text_input("Employee Name")
     amount = st.number_input("Amount", min_value=1)
@@ -79,38 +70,33 @@ elif menu == "Submit Expense":
     description = st.text_input("Description")
 
     if st.button("Submit"):
-        res = requests.post(f"{BASE_URL}/expenses/", json={
+        crud.create_expense(db, type("obj", (), {
             "employee_name": name,
             "amount": amount,
             "category": category,
             "description": description
-        })
-
-        if res.status_code == 200:
-            st.success("✅ Expense Submitted Successfully")
-        else:
-            st.error("❌ Error submitting expense")
+        }))
+        st.success("✅ Submitted Successfully")
 
 
-# View
+# ---------------- View ----------------
 elif menu == "View Expenses":
-
-    st.subheader("🔍 Filter Expenses")
-
-    name_filter = st.text_input("Search by Employee Name")
+    name_filter = st.text_input("Search Name")
     status_filter = st.selectbox("Status", ["", "Pending", "Approved", "Rejected"])
 
-    params = {}
-    if name_filter:
-        params["employee_name"] = name_filter
-    if status_filter:
-        params["status"] = status_filter
-
-    res = requests.get(f"{BASE_URL}/expenses/", params=params)
-    data = res.json()
+    data = crud.get_expenses(db, name_filter, status_filter)
 
     if data:
-        df = pd.DataFrame(data)
+        df = pd.DataFrame([{
+            "ID": e.id,
+            "Name": e.employee_name,
+            "Amount": e.amount,
+            "Category": e.category,
+            "Description": e.description,
+            "Date": e.date,
+            "Status": e.status
+        } for e in data])
+
         st.dataframe(df)
 
         csv = df.to_csv(index=False).encode('utf-8')
@@ -119,52 +105,56 @@ elif menu == "View Expenses":
         st.warning("No data found")
 
 
-# Update
+# ---------------- Update ----------------
 elif menu == "Update Expense":
     id = st.number_input("Expense ID", step=1)
-    name = st.text_input("Employee Name")
+    name = st.text_input("Name")
     amount = st.number_input("Amount", min_value=1)
     category = st.text_input("Category")
     description = st.text_input("Description")
 
     if st.button("Update"):
-        res = requests.put(f"{BASE_URL}/expenses/{id}", json={
+        result = crud.update_expense(db, id, type("obj", (), {
             "employee_name": name,
             "amount": amount,
             "category": category,
             "description": description
-        })
+        }))
 
-        if res.status_code == 200:
-            st.success("✅ Updated Successfully")
+        if result == "NOT_ALLOWED":
+            st.error("Only Pending can be updated")
+        elif result is None:
+            st.error("Not found")
         else:
-            st.error(res.json()["detail"])
+            st.success("Updated Successfully")
 
 
-# Delete
+# ---------------- Delete ----------------
 elif menu == "Delete Expense":
     id = st.number_input("Expense ID", step=1)
 
     if st.button("Delete"):
-        res = requests.delete(f"{BASE_URL}/expenses/{id}")
+        result = crud.delete_expense(db, id)
 
-        if res.status_code == 200:
-            st.success("✅ Deleted Successfully")
+        if result == "NOT_ALLOWED":
+            st.error("Only Pending can be deleted")
+        elif result is None:
+            st.error("Not found")
         else:
-            st.error(res.json()["detail"])
+            st.success("Deleted Successfully")
 
 
-# Approve / Reject
+# ---------------- Approve ----------------
 elif menu == "Approve/Reject":
     id = st.number_input("Expense ID", step=1)
     status = st.selectbox("Status", ["Approved", "Rejected"])
 
     if st.button("Submit"):
-        res = requests.put(f"{BASE_URL}/expenses/{id}/status", json={
-            "status": status
-        })
+        result = crud.update_status(db, id, status)
 
-        if res.status_code == 200:
-            st.success(f"✅ Expense {status}")
+        if result == "NOT_ALLOWED":
+            st.error("Already processed")
+        elif result is None:
+            st.error("Not found")
         else:
-            st.error(res.json()["detail"])
+            st.success(f"{status} Successfully")
